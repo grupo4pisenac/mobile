@@ -1,29 +1,41 @@
+import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, SafeAreaView } from 'react-native';
+import { StyleSheet, View, SafeAreaView } from 'react-native';
 
-// Correção dos caminhos para caminhos relativos:
-import TopBar from '/Users/arthurbem/Documents/ADS senac/2026.1/PI/app-PI/components/TopBar.tsx';
-import BottomMenu from '/Users/arthurbem/Documents/ADS senac/2026.1/PI/app-PI/components/BottomMenu.tsx';
+import TopBar from './components/TopBar';
+import BottomMenu from './components/BottomMenu'; // Certifique-se de atualizar o BottomMenu para receber a prop
+import SubmissionScreen from './screens/SubmissionScreen'; // Nova tela que vamos criar
+import HomeScreen from './screens/HomeScreen'; // Uma view simples para a Home
 
 export default function App() {
+  // O estado agora fica no componente pai para controlar as telas
+  const [currentTab, setCurrentTab] = useState('Inicio');
+
+  // Função que renderiza a visualização correta com base na aba selecionada
+    const renderContent = () => {
+        switch (currentTab) {
+          case 'Submissão':
+            return <SubmissionScreen />;
+          case 'Inicio':
+          default:
+            return <HomeScreen />;
+        }
+      };
+
   return (
-    // Wrapper principal para lidar com as cores diferentes no topo e na base (iOS)
     <View style={styles.mainWrapper}>
-      {/* SafeAreaView do topo com o fundo Azul */}
       <SafeAreaView style={styles.topSafeArea} />
-      
-      {/* SafeAreaView da base com o fundo do App/Branco */}
       <SafeAreaView style={styles.bottomSafeArea}>
         <View style={styles.container}>
-          
           <TopBar />
           
-          {/* Aqui no meio é onde as suas "páginas" vão renderizar futuramente */}
+          {/* Renderização dinâmica da tela selecionada */}
           <View style={styles.content}>
-            <Text style={{ color: '#666' }}>Submissão de horas complementares</Text>
+            {renderContent()}
           </View>
 
-          <BottomMenu />
+          {/* Passamos o estado e a função de alteração para o menu inferior */}
+          <BottomMenu activeTab={currentTab} setActiveTab={setCurrentTab} />
 
           <StatusBar style="light" backgroundColor="#002868" />
         </View>
@@ -33,25 +45,9 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  mainWrapper: {
-    flex: 1,
-    backgroundColor: '#002868', // Garante que a barra de status no topo seja azul
-  },
-  topSafeArea: {
-    flex: 0,
-    backgroundColor: '#002868',
-  },
-  bottomSafeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF', // Garante que o fundo atrás do "risquinho" do iPhone seja branco
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F5', // Cor de fundo do meio do app
-  },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  }
+  mainWrapper: { flex: 1, backgroundColor: '#002868' },
+  topSafeArea: { flex: 0, backgroundColor: '#002868' },
+  bottomSafeArea: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  content: { flex: 1 }
 });
