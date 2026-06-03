@@ -1,26 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, SafeAreaView } from 'react-native';
+import { StyleSheet, View, SafeAreaView, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import TopBar from './components/TopBar';
-import BottomMenu from './components/BottomMenu'; // Certifique-se de atualizar o BottomMenu para receber a prop
-import SubmissionScreen from './screens/SubmissionScreen'; // Nova tela que vamos criar
-import HomeScreen from './screens/HomeScreen'; // Uma view simples para a Home
+import BottomMenu from './components/BottomMenu';
+import LoginScreen from './screens/LoginScreen';
+import HomeScreen from './screens/HomeScreen';
+import SubmissionScreen from './screens/SubmissionScreen';
 
 export default function App() {
-  // O estado agora fica no componente pai para controlar as telas
+  const [logado, setLogado] = useState(false);
+  const [verificando, setVerificando] = useState(true);
   const [currentTab, setCurrentTab] = useState('Inicio');
 
-  // Função que renderiza a visualização correta com base na aba selecionada
-    const renderContent = () => {
-        switch (currentTab) {
-          case 'Submissão':
-            return <SubmissionScreen />;
-          case 'Inicio':
-          default:
-            return <HomeScreen />;
-        }
-      };
+  useEffect(() => {
+    async function verificarLogin() {
+      const token = await AsyncStorage.getItem('@EduManage:token');
+      setLogado(!!token);
+      setVerificando(false);
+    }
+    verificarLogin();
+  }, []);
+
+  if (verificando) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color="#002868" />
+      </View>
+    );
+  }
+
+  if (!logado) {
+    return <LoginScreen onLoginSuccess={() => setLogado(true)} />;
+  }
+
+  const renderContent = () => {
+    switch (currentTab) {
+      case 'Submissão': return <SubmissionScreen />;
+      case 'Inicio':
+      default: return <HomeScreen />;
+    }
+  };
 
   return (
     <View style={styles.mainWrapper}>
@@ -28,15 +49,10 @@ export default function App() {
       <SafeAreaView style={styles.bottomSafeArea}>
         <View style={styles.container}>
           <TopBar />
-          
-          {/* Renderização dinâmica da tela selecionada */}
           <View style={styles.content}>
             {renderContent()}
           </View>
-
-          {/* Passamos o estado e a função de alteração para o menu inferior */}
           <BottomMenu activeTab={currentTab} setActiveTab={setCurrentTab} />
-
           <StatusBar style="light" backgroundColor="#002868" />
         </View>
       </SafeAreaView>
@@ -45,9 +61,10 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#002868' },
   mainWrapper: { flex: 1, backgroundColor: '#002868' },
   topSafeArea: { flex: 0, backgroundColor: '#002868' },
-  bottomSafeArea: { flex: 1, backgroundColor: '#FFFFFF' },
+  bottomSafeArea: { flex: 1, backgroundColor: '#FFF' },
   container: { flex: 1, backgroundColor: '#F5F5F5' },
-  content: { flex: 1 }
+  content: { flex: 1 },
 });

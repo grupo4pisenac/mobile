@@ -1,38 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  ScrollView,
-  ActivityIndicator,
-  Platform,
-  Modal // <-- Novo import adicionado
+  View, Text, StyleSheet, TouchableOpacity, TextInput,
+  ScrollView, ActivityIndicator, Platform, Modal, Alert
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api, apiOcr } from '../services/api';
 
 interface SelectedFile {
   uri: string;
   name: string;
   mimeType?: string;
-  size?: number;
 }
 
-interface Course { id: string; name: string; }
-interface Category { id: string; name: string; }
+interface Curso { id: number; nome: string; }
+interface Regra { id: number; area: string; limiteHoras: number; }
 
-// =====================================================================
-// NOVO COMPONENTE: Picker Inteligente (Dropdown no Android, Modal no iOS)
-// =====================================================================
+// ── CustomPicker (iOS modal / Android nativo) ────────────────────────────────
+
 const CustomPicker = ({ selectedValue, onValueChange, items, placeholder, enabled = true }: any) => {
   const [showModal, setShowModal] = useState(false);
 
-  // Se for iPhone, desenha um botão igual ao TextInput e abre a roleta em um Modal
   if (Platform.OS === 'ios') {
     const selectedLabel = items.find((i: any) => i.value === selectedValue)?.label || placeholder;
     return (
@@ -40,12 +31,10 @@ const CustomPicker = ({ selectedValue, onValueChange, items, placeholder, enable
         <TouchableOpacity
           style={[styles.textInput, { justifyContent: 'center' }, !enabled && { backgroundColor: '#e0e0e0' }]}
           onPress={() => enabled && setShowModal(true)}
-          activeOpacity={0.7}
         >
           <Text style={{ color: selectedValue ? '#333' : '#999' }}>{selectedLabel}</Text>
-          <Ionicons name="chevron-down" size={16} color="#666" style={{ position: 'absolute', right: 12 }}/>
+          <Ionicons name="chevron-down" size={16} color="#666" style={{ position: 'absolute', right: 12 }} />
         </TouchableOpacity>
-
         <Modal visible={showModal} transparent animationType="slide">
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
@@ -54,10 +43,7 @@ const CustomPicker = ({ selectedValue, onValueChange, items, placeholder, enable
                   <Text style={styles.modalDoneText}>Concluído</Text>
                 </TouchableOpacity>
               </View>
-              <Picker
-                selectedValue={selectedValue}
-                onValueChange={(val) => onValueChange(val)}
-              >
+              <Picker selectedValue={selectedValue} onValueChange={(val) => onValueChange(val)}>
                 <Picker.Item label={placeholder} value="" />
                 {items.map((item: any) => (
                   <Picker.Item key={item.value} label={item.label} value={item.value} />
@@ -70,14 +56,9 @@ const CustomPicker = ({ selectedValue, onValueChange, items, placeholder, enable
     );
   }
 
-  // Se for Android, usa o comportamento padrão nativo que já é uma linha compacta
   return (
     <View style={[styles.pickerContainer, !enabled && { backgroundColor: '#e0e0e0' }]}>
-      <Picker
-        enabled={enabled}
-        selectedValue={selectedValue}
-        onValueChange={onValueChange}
-      >
+      <Picker enabled={enabled} selectedValue={selectedValue} onValueChange={onValueChange}>
         <Picker.Item label={placeholder} value="" style={{ color: '#999' }} />
         {items.map((item: any) => (
           <Picker.Item key={item.value} label={item.label} value={item.value} />
@@ -86,132 +67,167 @@ const CustomPicker = ({ selectedValue, onValueChange, items, placeholder, enable
     </View>
   );
 };
-// =====================================================================
 
+// ── Tela principal ────────────────────────────────────────────────────────────
 
 export default function SubmissionScreen() {
   const [file, setFile] = useState<SelectedFile | null>(null);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<string>('');
-  const [title, setTitle] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [date, setDate] = useState<Date>(new Date());
-  const [hours, setHours] = useState<string>('');
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [cursos, setCursos] = useState<Curso[]>([]);
+  const [regras, setRegras] = useState<Regra[]>([]);
+  const [selectedCursoId, setSelectedCursoId] = useState<number | ''>('');
+  const [selectedArea, setSelectedArea] = useState('');
+  const [descricao, setDescricao] = useState('');
+  const [horas, setHoras] = useState('');
+  const [semestre, setSemestre] = useState('');
   const [loading, setLoading] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const MAX_SIZE_BYTES = 10 * 1024 * 1024;
-  const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
-
+  // Busca cursos do aluno
   useEffect(() => {
-    async function loadCourses() {
-      try {
-        const response = await api.get('/alunos/cursos');
-        setCourses(response.data);
-      } catch (err) {
-        setCourses([
-          { id: '1', name: 'Análise e Desenvolvimento de Sistemas' },
-          { id: '2', name: 'Design Gráfico' }
-        ]);
-      }
-    }
-    loadCourses();
+    api.get('/dashboard/meus-cursos')
+      .then(r => setCursos(r.data))
+      .catch(() => setCursos([]));
   }, []);
 
+  // Busca regras do curso selecionado
   useEffect(() => {
-    if (!selectedCourse) {
-      setCategories([]);
-      return;
-    }
-    async function loadCategories() {
-      try {
-        const response = await api.get(`/cursos/${selectedCourse}/categorias`);
-        setCategories(response.data);
-      } catch (err) {
-        setCategories([
-          { id: 'cat1', name: 'Atividades Científicas (Palestras)' },
-          { id: 'cat2', name: 'Cursos de Extensão' },
-          { id: 'cat3', name: 'Estágio Obrigatório Excedente' }
-        ]);
-      }
-    }
-    loadCategories();
-  }, [selectedCourse]);
+    if (!selectedCursoId) { setRegras([]); return; }
+    api.get(`/cursos/${selectedCursoId}/regras`)
+      .then(r => setRegras(r.data))
+      .catch(() => setRegras([]));
+  }, [selectedCursoId]);
+
+  // ── Selecionar arquivo ────────────────────────────────────────────────────
 
   const handleSelectFile = async () => {
+    Alert.alert('Selecionar certificado', 'Como deseja enviar?', [
+      {
+        text: 'Câmera',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Permissão negada', 'Permita o acesso à câmera nas configurações.');
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 0.8,
+          });
+          if (!result.canceled) {
+            const asset = result.assets[0];
+            setFile({ uri: asset.uri, name: 'certificado.jpg', mimeType: 'image/jpeg' });
+            handleOcr({ uri: asset.uri, name: 'certificado.jpg', mimeType: 'image/jpeg' });
+          }
+        }
+      },
+      {
+        text: 'Galeria / Arquivo',
+        onPress: async () => {
+          const result = await DocumentPicker.getDocumentAsync({
+            type: ['image/jpeg', 'image/png', 'application/pdf'],
+            copyToCacheDirectory: true,
+          });
+          if (!result.canceled) {
+            const asset = result.assets[0];
+            const selectedFile = { uri: asset.uri, name: asset.name, mimeType: asset.mimeType };
+            setFile(selectedFile);
+            handleOcr(selectedFile);
+          }
+        }
+      },
+      { text: 'Cancelar', style: 'cancel' }
+    ]);
+  };
+
+  // ── OCR ───────────────────────────────────────────────────────────────────
+
+  const handleOcr = async (selectedFile: SelectedFile) => {
+    setOcrLoading(true);
     try {
-      setError(null);
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ALLOWED_TYPES,
-        copyToCacheDirectory: true,
+      const formData = new FormData();
+      formData.append('file', {
+        uri: selectedFile.uri,
+        name: selectedFile.name,
+        type: selectedFile.mimeType || 'image/jpeg',
+      } as any);
+
+      const response = await apiOcr.post('/ocr/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      if (result.canceled) return;
-      const selectedAsset = result.assets[0];
-
-      if (selectedAsset.mimeType && !ALLOWED_TYPES.includes(selectedAsset.mimeType)) {
-        setError('Formato inválido. Apenas JPEG, PNG ou PDF.');
-        return;
+      if (response.data.success) {
+        const campos = response.data.solicitacao;
+        if (campos.descricao) setDescricao(campos.descricao);
+        if (campos.horasSolicitadas) setHoras(String(campos.horasSolicitadas));
+        if (campos.semestre) setSemestre(String(campos.semestre));
+        if (campos.area) setSelectedArea(campos.area);
+        Alert.alert('✅ OCR concluído', 'Os dados foram preenchidos automaticamente. Revise antes de enviar.');
       }
-      if (selectedAsset.size && selectedAsset.size > MAX_SIZE_BYTES) {
-        setError('O arquivo excede o limite de 10MB.');
-        return;
-      }
-
-      setFile({
-        uri: selectedAsset.uri,
-        name: selectedAsset.name,
-        mimeType: selectedAsset.mimeType,
-        size: selectedAsset.size,
-      });
     } catch (err) {
-      setError('Erro ao selecionar o arquivo.');
+      console.log('OCR falhou, preenchimento manual necessário.');
+    } finally {
+      setOcrLoading(false);
     }
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios');
-    if (selectedDate) setDate(selectedDate);
-  };
+  // ── Submeter ──────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
     setError(null);
 
-    if (!file) return setError('Por favor, selecione o arquivo do certificado.');
-    if (!selectedCourse) return setError('Selecione o curso relacionado.');
-    if (!title.trim()) return setError('Insira o título da atividade.');
-    if (!selectedCategory) return setError('Selecione a categoria.');
-    if (!hours.trim() || isNaN(Number(hours)) || !Number.isInteger(Number(hours))) {
-      return setError('Insira um número inteiro válido para as horas.');
-    }
+    if (!file) return setError('Selecione o certificado.');
+    if (!descricao.trim()) return setError('Preencha a descrição.');
+    if (!horas.trim() || isNaN(Number(horas))) return setError('Informe as horas corretamente.');
 
     setLoading(true);
-    const formData = new FormData();
-    
-    formData.append('file', {
-      uri: file.uri,
-      name: file.name,
-      type: file.mimeType || 'application/octet-stream',
-    } as any);
-
-    formData.append('cursoId', selectedCourse);
-    formData.append('titulo', title);
-    formData.append('categoriaId', selectedCategory);
-    formData.append('dataAtividade', date.toISOString().split('T')[0]);
-    formData.append('quantidadeHoras', hours);
-
     try {
-      await api.post('/atividades/submeter', formData, {
+      // 1. Upload do certificado para o Cloudinary
+      const formData = new FormData();
+      formData.append('file', {
+        uri: file.uri,
+        name: file.name,
+        type: file.mimeType || 'image/jpeg',
+      } as any);
+
+      const uploadRes = await apiOcr.post('/certificados/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      alert('Atividade submetida com sucesso!');
+
+      const urlCertificado = uploadRes.data.urlCertificado;
+
+      // 2. Buscar ID do aluno logado
+      const token = await AsyncStorage.getItem('@EduManage:token');
+      const payload = JSON.parse(atob(token!.split('.')[1]));
+      const alunoId = payload.sub; // email — precisamos do ID via endpoint
+
+      // Busca o ID real do aluno
+      const alunosRes = await api.get('/usuarios/alunos');
+      const nomeStorage = await AsyncStorage.getItem('@EduManage:nome');
+      const aluno = alunosRes.data.find((a: any) => a.nome === nomeStorage);
+
+      if (!aluno) throw new Error('Aluno não encontrado');
+
+      // 3. Criar solicitação no backend Java
+      await api.post(`/solicitacoes/aluno/${aluno.id}`, {
+        descricao: descricao.trim(),
+        area: selectedArea,
+        horasSolicitadas: Number(horas),
+        cursoId: selectedCursoId,
+        urlCertificado,
+      });
+
+      Alert.alert('✅ Sucesso!', 'Atividade submetida com sucesso!');
       setFile(null);
-      setTitle('');
-      setHours('');
-    } catch (err) {
-      setError('Falha ao enviar os dados para o servidor.');
+      setDescricao('');
+      setHoras('');
+      setSemestre('');
+      setSelectedArea('');
+      setSelectedCursoId('');
+
+    } catch (err: any) {
+      setError('Falha ao enviar. Verifique sua conexão e tente novamente.');
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -221,78 +237,78 @@ export default function SubmissionScreen() {
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <Text style={styles.screenTitle}>Nova Submissão</Text>
 
-      <View style={[styles.card, error && !file ? styles.cardError : null]}>
-        <Text style={styles.cardTitle}>Upload do Certificado</Text>
-        <Text style={styles.cardSubtitle}>Formatos aceitos: JPEG, PNG ou PDF (Máx: 10MB)</Text>
-
+      {/* Upload */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Certificado</Text>
+        <Text style={styles.cardSubtitle}>JPEG, PNG ou PDF • Máx 10MB • OCR automático</Text>
         <TouchableOpacity
-          style={[styles.uploadButton, file ? styles.uploadButtonSuccess : null]}
+          style={[styles.uploadButton, file && styles.uploadButtonSuccess]}
           onPress={handleSelectFile}
         >
-          <Ionicons
-            name={file ? "checkmark-circle-outline" : "cloud-upload-outline"}
-            size={24}
-            color={file ? "#2e7d32" : "#002868"}
-          />
-          <Text style={[styles.uploadButtonText, file ? styles.uploadButtonTextSuccess : null]}>
-            {file ? file.name : "Selecionar arquivo do dispositivo"}
+          {ocrLoading ? (
+            <ActivityIndicator color="#002868" />
+          ) : (
+            <Ionicons
+              name={file ? 'checkmark-circle-outline' : 'camera-outline'}
+              size={24}
+              color={file ? '#2e7d32' : '#002868'}
+            />
+          )}
+          <Text style={[styles.uploadButtonText, file && styles.uploadButtonTextSuccess]}>
+            {ocrLoading ? 'Processando OCR...' : file ? file.name : 'Tirar foto ou selecionar arquivo'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.card, error && file ? styles.cardError : null]}>
+      {/* Formulário */}
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>Informações da Atividade</Text>
 
-        <Text style={styles.inputLabel}>Curso Referente</Text>
+        <Text style={styles.inputLabel}>Curso</Text>
         <CustomPicker
-          selectedValue={selectedCourse}
-          onValueChange={setSelectedCourse}
-          items={courses.map(c => ({ label: c.name, value: c.id }))}
-          placeholder="Selecione um curso..."
+          selectedValue={selectedCursoId}
+          onValueChange={setSelectedCursoId}
+          items={cursos.map(c => ({ label: c.nome, value: c.id }))}
+          placeholder="Selecione o curso..."
         />
 
-        <Text style={styles.inputLabel}>Título da Atividade</Text>
+        <Text style={styles.inputLabel}>Área</Text>
+        <CustomPicker
+          selectedValue={selectedArea}
+          onValueChange={setSelectedArea}
+          items={regras.map(r => ({ label: r.area, value: r.area }))}
+          placeholder={selectedCursoId ? 'Selecione a área...' : 'Selecione um curso primeiro'}
+          enabled={selectedCursoId !== ''}
+        />
+
+        <Text style={styles.inputLabel}>Descrição</Text>
         <TextInput
-          style={styles.textInput}
-          placeholder="Ex: Curso Extensão Python"
-          value={title}
-          onChangeText={setTitle}
-        />
-
-        <Text style={styles.inputLabel}>Categoria</Text>
-        <CustomPicker
-          selectedValue={selectedCategory}
-          onValueChange={setSelectedCategory}
-          items={categories.map(cat => ({ label: cat.name, value: cat.id }))}
-          placeholder={selectedCourse ? "Selecione uma categoria..." : "Selecione um curso primeiro"}
-          enabled={selectedCourse !== ''}
+          style={[styles.textInput, { height: 80, textAlignVertical: 'top' }]}
+          placeholder="Descreva a atividade realizada..."
+          value={descricao}
+          onChangeText={setDescricao}
+          multiline
         />
 
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.inputLabel}>Data de Emissão</Text>
-            <TouchableOpacity style={styles.dateButton} onPress={() => setShowDatePicker(true)}>
-              <Ionicons name="calendar-outline" size={18} color="#666" />
-              <Text style={styles.dateButtonText}>{date.toLocaleDateString('pt-BR')}</Text>
-            </TouchableOpacity>
-            {showDatePicker && (
-              <DateTimePicker
-                value={date}
-                mode="date"
-                display="default"
-                onChange={handleDateChange}
-              />
-            )}
-          </View>
-
-          <View style={{ flex: 1 }}>
-            <Text style={styles.inputLabel}>Horas Computadas</Text>
+            <Text style={styles.inputLabel}>Horas</Text>
             <TextInput
               style={styles.textInput}
               placeholder="Ex: 20"
               keyboardType="numeric"
-              value={hours}
-              onChangeText={setHours}
+              value={horas}
+              onChangeText={setHoras}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.inputLabel}>Semestre</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Ex: 3"
+              keyboardType="numeric"
+              value={semestre}
+              onChangeText={setSemestre}
             />
           </View>
         </View>
@@ -305,7 +321,10 @@ export default function SubmissionScreen() {
         )}
 
         <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={loading}>
-          {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitButtonText}>SUBMETER ATIVIDADE</Text>}
+          {loading
+            ? <ActivityIndicator color="#FFF" />
+            : <Text style={styles.submitButtonText}>SUBMETER ATIVIDADE</Text>
+          }
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -316,112 +335,42 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#F5F5F5' },
   screenTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 16 },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: '#FFF', borderRadius: 12, padding: 16, marginBottom: 16,
+    borderWidth: 1, borderColor: '#E0E0E0', elevation: 2,
   },
-  cardError: { borderColor: '#d32f2f', backgroundColor: '#fff8f8' },
-  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#002868', marginBottom: 12 },
+  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#002868', marginBottom: 4 },
   cardSubtitle: { fontSize: 12, color: '#666', marginBottom: 12 },
   uploadButton: {
-    borderWidth: 1.5,
-    borderColor: '#002868',
-    borderStyle: 'dashed',
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-    backgroundColor: '#F9FAFC',
+    borderWidth: 1.5, borderColor: '#002868', borderStyle: 'dashed',
+    borderRadius: 8, padding: 16, alignItems: 'center', flexDirection: 'row',
+    gap: 8, backgroundColor: '#F9FAFC',
   },
   uploadButtonSuccess: { borderColor: '#2e7d32', backgroundColor: '#f1f8e9' },
-  uploadButtonText: { color: '#002868', fontWeight: '600', fontSize: 13, flex: 1, textAlign: 'center' },
+  uploadButtonText: { color: '#002868', fontWeight: '600', fontSize: 13, flex: 1 },
   uploadButtonTextSuccess: { color: '#2e7d32' },
   inputLabel: { fontSize: 13, fontWeight: '600', color: '#444', marginBottom: 6, marginTop: 12 },
-  
-  // Estilos compartilhados entre os inputs reais e os botões falsos do iOS
   textInput: {
-    borderWidth: 1,
-    borderColor: '#CCCCCC',
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 14,
-    backgroundColor: '#FAFAFA',
-    height: 44, // Altura fixa para manter o padrão
+    borderWidth: 1, borderColor: '#CCC', borderRadius: 8,
+    padding: 10, fontSize: 14, backgroundColor: '#FAFAFA', height: 44,
   },
   pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#CCCCCC',
-    borderRadius: 8,
-    backgroundColor: '#FAFAFA',
-    justifyContent: 'center',
-    height: 44,
-    overflow: 'hidden'
+    borderWidth: 1, borderColor: '#CCC', borderRadius: 8,
+    backgroundColor: '#FAFAFA', height: 44, overflow: 'hidden', justifyContent: 'center',
   },
-  
-  // Estilos do Modal da Roleta (Exclusivos do iOS)
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.4)'
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    paddingBottom: 20,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalContent: { backgroundColor: '#FFF', paddingBottom: 20, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderColor: '#EEEEEE',
-    backgroundColor: '#F9F9F9',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    flexDirection: 'row', justifyContent: 'flex-end', padding: 16,
+    borderBottomWidth: 1, borderColor: '#EEE', backgroundColor: '#F9F9F9',
+    borderTopLeftRadius: 16, borderTopRightRadius: 16,
   },
-  modalDoneText: {
-    color: '#002868',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-
-  row: { flexDirection: 'row', gap: 12, marginBottom: 8 },
-  dateButton: {
-    borderWidth: 1,
-    borderColor: '#CCCCCC',
-    borderRadius: 8,
-    padding: 11,
-    backgroundColor: '#FAFAFA',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    height: 44,
-  },
-  dateButtonText: { fontSize: 14, color: '#333' },
+  modalDoneText: { color: '#002868', fontWeight: 'bold', fontSize: 16 },
+  row: { flexDirection: 'row', gap: 12 },
   errorContainer: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 16 },
-  errorText: { color: '#d32f2f', fontSize: 13, fontWeight: '500', flex: 1 },
+  errorText: { color: '#d32f2f', fontSize: 13, flex: 1 },
   submitButton: {
-    backgroundColor: '#F47920',
-    borderRadius: 8,
-    padding: 14,
-    alignItems: 'center',
-    marginTop: 20,
-    shadowColor: '#F47920',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3
+    backgroundColor: '#F47920', borderRadius: 8, padding: 14,
+    alignItems: 'center', marginTop: 20, elevation: 3,
   },
-  submitButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 14, letterSpacing: 0.5 }
+  submitButtonText: { color: '#FFF', fontWeight: 'bold', fontSize: 14, letterSpacing: 0.5 },
 });
