@@ -48,7 +48,7 @@ export default function App() {
       <SafeAreaView style={styles.topSafeArea} />
       <SafeAreaView style={styles.bottomSafeArea}>
         <View style={styles.container}>
-          <TopBar />
+          <TopBar onLogout={() => setLogado(false)} />
           <View style={styles.content}>
             {renderContent()}
           </View>

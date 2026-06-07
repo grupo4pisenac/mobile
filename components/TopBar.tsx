@@ -1,8 +1,28 @@
 import React from 'react';
-import { View, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Image, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function TopBar() {
+interface Props {
+  onLogout: () => void;
+}
+
+export default function TopBar({ onLogout }: Props) {
+
+  const handleLogout = () => {
+    Alert.alert('Sair', 'Deseja encerrar a sessão?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Sair',
+        style: 'destructive',
+        onPress: async () => {
+          await AsyncStorage.clear();
+          onLogout();
+        }
+      }
+    ]);
+  };
+
   return (
     <View style={styles.header}>
       <Image
@@ -15,10 +35,9 @@ export default function TopBar() {
           <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
           <View style={styles.badge} />
         </TouchableOpacity>
-        <Image
-          source={require('../assets/usuario.png')}
-          style={styles.profilePic}
-        />
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+          <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -31,11 +50,12 @@ const styles = StyleSheet.create({
     alignItems: 'center', paddingHorizontal: 20,
   },
   logo: { height: 35, width: 100 },
-  rightContainer: { flexDirection: 'row', alignItems: 'center' },
-  bellButton: { marginRight: 16, position: 'relative' },
+  rightContainer: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  bellButton: { position: 'relative' },
   badge: {
     position: 'absolute', top: 0, right: 2, width: 10, height: 10,
     borderRadius: 5, backgroundColor: '#F47920', borderWidth: 1.5, borderColor: '#002868',
   },
+  logoutButton: { padding: 4 },
   profilePic: { height: 40, width: 40, borderRadius: 20, borderWidth: 2, borderColor: '#2D4486' },
 });
