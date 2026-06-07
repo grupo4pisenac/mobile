@@ -38,6 +38,7 @@ export default function App() {
   const renderContent = () => {
     switch (currentTab) {
       case 'Submissão': return <SubmissionScreen />;
+        case 'Historico': return <ListSubmissionsScreen />;
       case 'Inicio':
       default: return <HomeScreen />;
     }
