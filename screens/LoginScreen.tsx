@@ -34,6 +34,7 @@ export default function LoginScreen({ onLoginSuccess }: Props) {
       await AsyncStorage.setItem('@EduManage:token', token);
       await AsyncStorage.setItem('@EduManage:perfil', perfil);
       await AsyncStorage.setItem('@EduManage:nome', nome);
+      await AsyncStorage.setItem('@EduManage:email', email.trim());
 
       onLoginSuccess();
     } catch (error: any) {
@@ -93,55 +94,15 @@ export default function LoginScreen({ onLoginSuccess }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#002868',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 28,
-  },
-  logo: {
-    height: 60,
-    width: '100%',
-    marginBottom: 8,
-  },
-  subtitle: {
-    textAlign: 'center',
-    color: '#666',
-    fontSize: 13,
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#444',
-    marginBottom: 6,
-    marginTop: 12,
-  },
+  container: { flex: 1, backgroundColor: '#002868', justifyContent: 'center', padding: 24 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 28 },
+  logo: { height: 60, width: '100%', marginBottom: 8 },
+  subtitle: { textAlign: 'center', color: '#666', fontSize: 13, marginBottom: 24 },
+  label: { fontSize: 13, fontWeight: '600', color: '#444', marginBottom: 6, marginTop: 12 },
   input: {
-    borderWidth: 1,
-    borderColor: '#CCC',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    backgroundColor: '#FAFAFA',
-    color: '#333',
+    borderWidth: 1, borderColor: '#CCC', borderRadius: 8,
+    padding: 12, fontSize: 14, backgroundColor: '#FAFAFA', color: '#333',
   },
-  button: {
-    backgroundColor: '#F47920',
-    borderRadius: 8,
-    padding: 14,
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  buttonText: {
-    color: '#FFF',
-    fontWeight: 'bold',
-    fontSize: 14,
-    letterSpacing: 0.5,
-  },
+  button: { backgroundColor: '#F47920', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 24 },
+  buttonText: { color: '#FFF', fontWeight: 'bold', fontSize: 14, letterSpacing: 0.5 },
 });

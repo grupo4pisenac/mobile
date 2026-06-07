@@ -10,6 +10,7 @@ import HomeScreen from './screens/HomeScreen';
 import SubmissionScreen from './screens/SubmissionScreen';
 import ListSubmissionsScreen from './screens/ListSubmissionsScreen';
 import ContactScreen from './screens/ContactScreen';
+import ProfileScreen from './screens/ProfileScreen';
 
 export default function App() {
   const [logado, setLogado] = useState(false);
@@ -40,8 +41,9 @@ export default function App() {
   const renderContent = () => {
     switch (currentTab) {
       case 'Submissão': return <SubmissionScreen />;
-        case 'Historico': return <ListSubmissionsScreen />;
-        case 'Contatos': return <ContactScreen />;
+      case 'Historico': return <ListSubmissionsScreen />;
+      case 'Contatos': return <ContactScreen />;
+      case 'Perfil': return <ProfileScreen />;
       case 'Inicio':
       default: return <HomeScreen />;
     }
