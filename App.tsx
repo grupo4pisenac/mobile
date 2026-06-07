@@ -8,6 +8,8 @@ import BottomMenu from './components/BottomMenu';
 import LoginScreen from './screens/LoginScreen';
 import HomeScreen from './screens/HomeScreen';
 import SubmissionScreen from './screens/SubmissionScreen';
+import ListSubmissionsScreen from './screens/ListSubmissionsScreen';
+import ContactScreen from './screens/ContactScreen';
 
 export default function App() {
   const [logado, setLogado] = useState(false);
@@ -39,6 +41,7 @@ export default function App() {
     switch (currentTab) {
       case 'Submissão': return <SubmissionScreen />;
         case 'Historico': return <ListSubmissionsScreen />;
+        case 'Contatos': return <ContactScreen />;
       case 'Inicio':
       default: return <HomeScreen />;
     }
