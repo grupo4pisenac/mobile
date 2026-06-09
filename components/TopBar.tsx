@@ -31,7 +31,11 @@ export default function TopBar({ onLogout }: Props) {
         resizeMode="contain"
       />
       <View style={styles.rightContainer}>
-        <TouchableOpacity style={styles.bellButton}>
+        {/* CORREÇÃO: Disparo de Alerta adicionado nas Notificações */}
+        <TouchableOpacity 
+          style={styles.bellButton}
+          onPress={() => Alert.alert('Notificações', 'Você não tem novas notificações no momento.')}
+        >
           <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
           <View style={styles.badge} />
         </TouchableOpacity>
