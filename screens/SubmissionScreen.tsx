@@ -156,16 +156,21 @@ export default function SubmissionScreen() {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      if (response.data.success) {
-        const campos = response.data.solicitacao;
+      // CORREÇÃO: Lê os dados do backend independentemente de ter flag "success"
+      const data = response.data;
+      const campos = data.solicitacao || data;
+
+      if (campos) {
         if (campos.descricao) setDescricao(campos.descricao);
-        if (campos.horasSolicitadas) setHoras(String(campos.horasSolicitadas));
+        if (campos.horasSolicitadas || campos.horas) setHoras(String(campos.horasSolicitadas || campos.horas));
         if (campos.semestre) setSemestre(String(campos.semestre));
         if (campos.area) setSelectedArea(campos.area);
+        
         Alert.alert('✅ OCR concluído', 'Os dados foram preenchidos automaticamente. Revise antes de enviar.');
       }
     } catch (err) {
-      console.log('OCR falhou, preenchimento manual necessário.');
+      console.log('OCR falhou, preenchimento manual necessário.', err);
+      Alert.alert('Aviso OCR', 'Não foi possível preencher automaticamente. Por favor, insira os dados manuais.');
     } finally {
       setOcrLoading(false);
     }
@@ -175,7 +180,8 @@ export default function SubmissionScreen() {
 
   const handleSubmit = async () => {
     setError(null);
-
+    if (!selectedCursoId) return setError('Selecione o curso.');
+    if (!selectedArea) return setError('Selecione a área da atividade.');
     if (!file) return setError('Selecione o certificado.');
     if (!descricao.trim()) return setError('Preencha a descrição.');
     if (!horas.trim() || isNaN(Number(horas))) return setError('Informe as horas corretamente.');
